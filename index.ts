@@ -1,5 +1,5 @@
 import { Observable, of, OperatorFunction, Subscription, interval } from 'rxjs';
-import { exhaustMap, delay } from 'rxjs/operators';
+import { delay } from 'rxjs/operators';
 
 function exhaustMapWithPredicate<T, R>(
   project: (value: T) => Observable<R>,
@@ -17,16 +17,25 @@ function exhaustMapWithPredicate<T, R>(
 
           if (
             innerSubscription &&
+            !innerCompleted &&
             !predicate(value, previousValue, undefined as any)
           ) {
+            console.log('exhausted', value);
             return;
           }
-
           if (innerSubscription) {
             innerSubscription.unsubscribe();
+            console.log('cancelled', value);
           }
 
-          innerSubscription = innerObservable.subscribe(observer);
+          innerCompleted = false;
+          innerSubscription = innerObservable.subscribe({
+            next: (value?: R) => observer.next(value),
+            error: (err?: any) => observer.error(err),
+            complete() {
+              innerCompleted = true;
+            },
+          });
           previousValue = value;
         },
         error(error: any) {
@@ -60,17 +69,18 @@ function predicate(
   previous: number | undefined,
   innerValue: any
 ) {
-  return current % 2 === 0;
+  return current % 4 === 0;
 }
 
+console.log('START');
 // An example usage of the exhaustMapWithPredicate operator.
 const result$ = source$.pipe(
-  exhaustMapWithPredicate((value) => delayedValue(value, 3000), predicate)
+  exhaustMapWithPredicate((value) => delayedValue(value, 2000), predicate)
 );
 
 result$.subscribe({
   next(value) {
-    console.log(value);
+    console.log('V' + value);
   },
   error(error) {
     console.error(error);
